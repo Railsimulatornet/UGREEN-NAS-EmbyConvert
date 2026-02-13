@@ -1,0 +1,103 @@
+services:
+  ffmpeg:
+    image: lscr.io/linuxserver/ffmpeg:latest
+    container_name: ffmpeg_qsv
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "44"   # video
+      - "105"  # render
+    environment:
+      - TZ=Europe/Berlin
+      - PUID=1009
+      - PGID=10
+      - UMASK=022
+
+      # --- Encode/Quality ---
+      - RATE_MODE=auto
+      - BITRATE_FACTOR=0.95
+      - GQ=18
+      - PRESET=slow
+
+      # --- Timestamp Handling ---
+      - FPS_MODE=vfr
+      - GENPTS=1
+      - IGNDTS=1
+      - AVOID_NEG_TS=make_zero
+
+      # --- Probe ---
+      - PROBESIZE=20M
+      - ANALYZEDURATION=20M
+
+      # --- Skip Regeln ---
+      - SKIP_4K=1
+      - SKIP_DOLBY_VISION=1
+      - SKIP_HDR=1
+      - REMUX_HEVC=0
+
+      # --- Sicherheit/Resume ---
+      - STRICT_INPUT=1
+      - VERIFY_OUTPUT=1
+
+      # --- Size Guard: never larger than source ---
+      - SIZE_GUARD=1
+      - ALLOW_SIZE_GROW_PCT=0
+      - SIZE_GUARD_ACTION=retry
+      - SIZE_GUARD_FACTOR_STEP=0.95
+      - SIZE_GUARD_MAX_TRIES=6
+
+      # --- Audio Policy: nur Deutsch wenn >1 Audio ---
+      - AUDIO_GERMAN_ONLY=0
+
+      # --- Ordner ignorieren ---
+      - 'EXCLUDE_DIRS=#recycle,@eaDir'
+
+      # --- HEVC Kandidatenliste (Option A: nur Report, kein Reencode) ---
+      - REENCODE_HEVC=0
+      - HEVC_MIN_SIZE_GB=10
+      - HEVC_MIN_VBPS_1080P=9000000
+      - HEVC_MIN_VBPS_720P=5000000
+      - HEVC_MIN_SAVINGS_PCT=10
+      - HEVC_REENCODE_GQ_START=20
+      - HEVC_REENCODE_GQ_MAX=24
+      - HEVC_REENCODE_GQ_STEP=1
+      - VMAF_CHECK=0
+      - VMAF_MIN=97
+      - VMAF_SAMPLE_SEC=30
+      - VMAF_SAMPLES=0.1,0.5,0.9
+
+    volumes:
+      - /volume1/Emby:/in:ro
+      - /volume1/Embykonvertiert:/out
+      - /volume2/docker/EmbyConvert/ffmpeg/scripts:/scripts
+
+    entrypoint: ["/bin/bash"]
+    command: ["/scripts/hevc_batch.sh", "--runlog", "/out/_ffmpeg_logs/run_ALL.log", "--watch"]
+    restart: unless-stopped
+    
+  weekly_mail_report:
+    image: python:3.12-alpine
+    container_name: embyconvert_weekly_mail_report
+    environment:
+      - TZ=Europe/Berlin
+      - PYTHONUNBUFFERED=1
+      # Optional: Schedule per ENV (Default: Firday 20:00)
+      # - REPORT_WEEKDAY=5    # 1=Mo ... 7=Su
+      # - REPORT_HOUR=20
+      # - REPORT_MINUTE=0
+      # - RUN_ON_START=0
+    env_file:
+      - ./embyconvert_mail.env
+    volumes:
+      # Important: These volumes must be identical to the ffmpeg volumes!
+      - /volume1/Emby:/in:ro
+      - /volume1/Embykonvertiert:/out
+      - /volume2/docker/EmbyConvert/ffmpeg/scripts:/scripts:ro
+
+      # Mount the env file additionally into the container filesystem (if the environment variable is not inherited)
+      - ./embyconvert_mail.env:/config/embyconvert_mail.env:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+
+    command: ["python3","/scripts/weekly_mail_report_daemon.py","--in","/in","--out","/out","--envfile","/config/embyconvert_mail.env"]
+    restart: unless-stopped

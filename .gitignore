@@ -1,0 +1,11 @@
+# Release-Assets (nur für GitHub Releases, nicht committen)
+release-assets/
+RELEASE_NOTES.md
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+
+# Runtime / Logs (falls später erzeugt)
+*.log
+*.pid
