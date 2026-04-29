@@ -1,4 +1,5 @@
 # EmbyConvert für UGREEN DXP NAS (Intel QSV)
+![EmbyConvert](Screens/EmbyConvert.png)
 
 Dieses Projekt ist ein fertiges **DockerPack** für UGREEN **DXP**-Modelle (Intel iGPU), um Medienbibliotheken automatisiert nach **HEVC (H.265)** zu konvertieren und regelmäßige **E-Mail-Reports** zu versenden.
 
@@ -34,6 +35,3 @@ Dieses Projekt ist ein fertiges **DockerPack** für UGREEN **DXP**-Modelle (Inte
 |---|
 | ![Mail-Report](de/Screens/Mail.jpg) |
 
-## Releases
-
-Empfohlen: ZIPs über **GitHub Releases** bereitstellen (DE/EN getrennt).
