@@ -29,6 +29,22 @@ Dieses Projekt ist ein fertiges **DockerPack** für UGREEN **DXP**-Modelle (Inte
    - DE: `de/EmbyConvert_Anleitung_DE_v1.1.pdf`
    - EN: `en/EmbyConvert_Manual_EN_v1.1.pdf`
 
+## Prüfung der Ausgabedateien
+
+Mit `VERIFY_OUTPUT=1` werden Bild und Ton vor dem Übernehmen der temporären
+Ausgabedatei vollständig dekodiert. Dekodierfehler oder eine abweichende Laufzeit der Hauptvideospur
+verwerfen den neuen Output; eine bereits vorhandene Zieldatei bleibt erhalten.
+Für Zeitstempel und Paketgrenzen beträgt die Laufzeittoleranz 1 %, mindestens
+0,25 und höchstens 2 Sekunden. Verglichen wird die Spanne der Präsentationszeitstempel
+von `v:0`, einschließlich der letzten Paketdauer. Längere abgewählte Audiospuren
+und verschobene Startzeitstempel beeinflussen diesen Vergleich nicht; eine fehlende
+Container- oder Stream-Dauerangabe bei MKV ist ebenfalls unproblematisch.
+Nicht zuverlässig ermittelbare Videozeitspannen werden abgelehnt. Die vollständige Prüfung benötigt zusätzliche
+CPU-Zeit. Die Quelldateien bleiben im Compose-Paket schreibgeschützt eingebunden.
+
+Die automatisierten Tests verwenden ausschließlich künstliche Miniclips und
+einen simulierten Encoder: `python3 -m unittest discover -s tests -v`.
+
 ## Screenshots
 
 | Mail-Report Beispiel |
