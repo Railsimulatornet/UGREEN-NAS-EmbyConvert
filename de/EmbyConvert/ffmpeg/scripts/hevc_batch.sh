@@ -302,6 +302,35 @@ get_duration_sec() {
   d="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$1" 2>/dev/null | first_line || true)"
   echo -n "$(echo -n "$d" | tr -cd '0-9.')"
 }
+get_primary_video_duration_sec() {
+  # Container duration may include longer audio that the audio policy removes.
+  # Read v:0 packet timestamps: this also works when MKV stream.duration is N/A.
+  # Presentation order can differ from packet order, and remuxing can shift PTS.
+  ffprobe -v error -select_streams v:0 \
+    -show_entries packet=pts_time,duration_time -of compact=p=0:nk=0 "$1" 2>/dev/null \
+    | LC_ALL=C awk -F '|' '
+      BEGIN { number="^-?[0-9]+([.][0-9]+)?$" }
+      NF {
+        pts=""; duration="";
+        for (i=1; i<=NF; i++) {
+          split($i, field, "=");
+          if (field[1]=="pts_time") pts=field[2];
+          if (field[1]=="duration_time") duration=field[2];
+        }
+        if (pts !~ number) { invalid=1; next }
+        pts+=0;
+        duration=(duration ~ number && duration+0 > 0) ? duration+0 : 0;
+        if (!count || pts < first) first=pts;
+        if (!count || pts > latest) latest=pts;
+        if (!count || pts+duration > end) end=pts+duration;
+        count++;
+      }
+      END {
+        # Without a known final packet duration, do not guess the video end.
+        if (invalid || !count || end <= latest || end <= first) exit 1;
+        printf "%.6f", end-first;
+      }'
+}
 get_filesize_bytes() {
   local s=""
   if command -v stat >/dev/null 2>&1; then
@@ -383,24 +412,50 @@ ffmpeg_scan_corruption() {
   local f="$1"
   local scope="${2:-input}"   # input|output
   local out rc ll="warning"
-  [[ "$scope" == "output" ]] && ll="error"
+  local -a decode_args=() map_args=(-map 0 -c copy)
+  if [[ "$scope" == "output" ]]; then
+    ll="error"
+    # Decode every video/audio stream. Stream copy only checks the container.
+    decode_args=(-xerror -err_detect explode)
+    map_args=(-map 0:v -map '0:a?')
+  fi
 
-  set +e
-  out="$(
+  if out="$(
     ffmpeg -hide_banner -nostdin -nostats -loglevel "$ll" \
       -probesize "$PROBESIZE" -analyzeduration "$ANALYZEDURATION" \
-      -fflags +genpts -fflags +igndts \
-      -i "$f" -map 0 -c copy -f null - 2>&1 >/dev/null
-  )"
-  rc=$?
-  set -e
-
-  if [[ "$rc" -ne 0 ]]; then
-    echo "$out" | grep -Eiq "$CORRUPT_PATTERNS" && return 1
-    return 1
+      -fflags +genpts -fflags +igndts "${decode_args[@]}" \
+      -i "$f" "${map_args[@]}" -f null - 2>&1 >/dev/null
+  )"; then
+    rc=0
+  else
+    rc=$?
   fi
+
+  [[ "$rc" -ne 0 ]] && return 1
+  # Some FFmpeg builds log decoder errors but still exit successfully.
+  [[ "$scope" == "output" && -n "$out" ]] && return 1
   echo "$out" | grep -Eiq "$CORRUPT_PATTERNS" && return 1
   return 0
+}
+
+verify_output() {
+  local src="$1" out="$2" src_duration out_duration
+  ffmpeg_scan_corruption "$out" "output" || return 1
+  src_duration="$(get_primary_video_duration_sec "$src")" || return 1
+  out_duration="$(get_primary_video_duration_sec "$out")" || return 1
+  [[ "$src_duration" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  [[ "$out_duration" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+
+  # Permit timestamp/packet rounding: 1%, limited to 0.25 through 2 seconds.
+  awk -v src="$src_duration" -v out="$out_duration" 'BEGIN {
+    if (src <= 0 || out <= 0) exit 1;
+    tolerance=src*0.01;
+    if (tolerance < 0.25) tolerance=0.25;
+    if (tolerance > 2) tolerance=2;
+    difference=src-out;
+    if (difference < 0) difference=-difference;
+    exit (difference <= tolerance) ? 0 : 1;
+  }'
 }
 
 # ---------------------------
@@ -865,7 +920,7 @@ process_one() {
         fi
 
         if [[ "$VERIFY_OUTPUT" == "1" ]]; then
-          if ! ffmpeg_scan_corruption "$tmp" "output"; then
+          if ! verify_output "$f" "$tmp"; then
             log "ERROR: VERIFY_OUTPUT failed -> verwerfe Output: $rel"
             echo "$rel" >> "$SKIPLIST_BAD_OUTPUT_FILE" || true
             rm -f "$tmp" 2>/dev/null || true
@@ -925,7 +980,7 @@ process_one() {
 
       # VERIFY_OUTPUT
       if [[ "$VERIFY_OUTPUT" == "1" ]]; then
-        if ! ffmpeg_scan_corruption "$tmp" "output"; then
+        if ! verify_output "$f" "$tmp"; then
           log "ERROR: VERIFY_OUTPUT failed -> verwerfe Output: $rel"
           echo "$rel" >> "$SKIPLIST_BAD_OUTPUT_FILE" || true
           rm -f "$tmp" 2>/dev/null || true
@@ -1112,7 +1167,7 @@ process_one() {
 
     # VERIFY_OUTPUT
     if [[ "$VERIFY_OUTPUT" == "1" ]]; then
-      if ! ffmpeg_scan_corruption "$tmp" "output"; then
+      if ! verify_output "$f" "$tmp"; then
         log "ERROR: VERIFY_OUTPUT failed -> verwerfe Output: $rel"
         echo "$rel" >> "$SKIPLIST_BAD_OUTPUT_FILE" || true
         rm -f "$tmp" 2>/dev/null || true
@@ -1131,7 +1186,6 @@ process_one() {
 # main once + watch
 # ---------------------------
 main_once() {
-  acquire_lock
   build_manifest
 
   local total cursor
@@ -1195,6 +1249,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$(dirname "$LOG_FILE")" || true
+
+acquire_lock
 
 if [[ "$WATCH" == "1" ]]; then
   while true; do
