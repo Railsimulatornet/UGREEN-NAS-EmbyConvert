@@ -1,4 +1,8 @@
 # EmbyConvert für UGREEN DXP NAS (Intel QSV)
+
+[![Quality](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/quality.yml)
+[![CodeQL](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/codeql.yml)
+
 ![EmbyConvert](Screens/EmbyConvert.png)
 
 Dieses Projekt ist ein fertiges **DockerPack** für UGREEN **DXP**-Modelle (Intel iGPU), um Medienbibliotheken automatisiert nach **HEVC (H.265)** zu konvertieren und regelmäßige **E-Mail-Reports** zu versenden.

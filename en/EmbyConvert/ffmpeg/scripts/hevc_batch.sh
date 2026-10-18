@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# hevc_batch.sh (v7.6.8) | 2026-01-22
+# hevc_batch.sh (v7.6.9) | 2026-10-18
 # Copyright Roman Glos
 # Intel QSV HEVC Batch-Encoder mit Resume + Watch
 # ============================================================
