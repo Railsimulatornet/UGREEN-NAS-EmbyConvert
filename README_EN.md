@@ -1,5 +1,8 @@
 # EmbyConvert for UGREEN DXP NAS (Intel QSV)
 
+[![Quality](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/quality.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/quality.yml)
+[![CodeQL](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Railsimulatornet/UGREEN-NAS-EmbyConvert/actions/workflows/codeql.yml)
+
 English documentation is provided in the `en/` folder.
 
 - Manual (EN): `en/EmbyConvert_Manual_EN_v1.1.pdf`
