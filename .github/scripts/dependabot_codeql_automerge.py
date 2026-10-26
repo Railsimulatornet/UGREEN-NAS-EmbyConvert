@@ -177,9 +177,9 @@ def verify_pr(api, pr_number):
     files = api.pages(f"{base}/pulls/{int(pr_number)}/files")
     before_sha, after_sha = parse_diff(files)
     if tag_commit(api, old_version) != before_sha or tag_commit(api, new_version) != after_sha:
-        raise StopMerge("CodeQL SHA pins do not match signed release refs")
+        raise StopMerge("CodeQL SHA pins do not match published release tag refs")
     contents = api.file(".github/workflows/codeql.yml", head)
-    pins = PIN.findall(contents)
+    pins = [match.groups() for line in contents.splitlines() if (match := PIN.fullmatch(line))]
     if len(pins) != 2 or {action for action, _ in pins} != {"init", "analyze"} or {sha for _, sha in pins} != {after_sha}:
         raise StopMerge("CodeQL workflow has inconsistent effective pins")
     main = api.get(f"{base}/git/ref/heads/main")["object"]["sha"]
