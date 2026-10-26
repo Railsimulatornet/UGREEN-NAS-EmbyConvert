@@ -71,10 +71,36 @@ jobs:
           print(f"Parsed {checked} Python files/blocks without executing them.")
           PYCODE
 
-      - name: Install media fixture tools
+      - name: Install pinned, checksum-verified FFmpeg fixture tools
+        shell: bash
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends ffmpeg
+          set -Eeuo pipefail
+          tools_dir="$RUNNER_TEMP/embyconvert-ffmpeg"
+          mkdir -p "$tools_dir"
+
+          # Version-locked upstream release assets. Verify the compressed
+          # bytes before executing anything; never trust a moving 'latest'.
+          download_tool() {
+            local name="$1"
+            local expected_sha256="$2"
+            local archive="$tools_dir/$name.gz"
+            curl --fail --location --silent --show-error \
+              --retry 2 --retry-delay 2 --connect-timeout 15 --max-time 180 \
+              "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/$name-linux-x64.gz" \
+              --output "$archive"
+            printf '%s  %s\n' "$expected_sha256" "$archive" | sha256sum --check --status
+            gzip -d "$archive"
+            chmod 0755 "$tools_dir/$name"
+          }
+
+          download_tool ffmpeg bfe8a8fc511530457b528c48d77b5737527b504a3797a9bc4866aeca69c2dffa
+          download_tool ffprobe 25d9b6ccb05e3d9de9e04e31e2506d8dd7f9f0418981965ac6df12e8d3afd067
+
+          "$tools_dir/ffmpeg" -hide_banner -version
+          "$tools_dir/ffprobe" -hide_banner -version
+          "$tools_dir/ffmpeg" -hide_banner -encoders | grep -Eq '[[:space:]]libx264[[:space:]]'
+          printf '%s\n' "$tools_dir" >> "$GITHUB_PATH"
 
       - name: Run isolated regression tests
         run: python3 -m unittest discover -s tests -v
